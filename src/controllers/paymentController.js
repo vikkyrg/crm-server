@@ -1,0 +1,56 @@
+import Payment from '../models/Payment.js';
+export const getPayments = async (req, res) => {
+  try {
+    const data = await Payment.find({ deletedAt: null });
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getPayment = async (req, res) => {
+  try {
+    const data = await Payment.findById(req.params.id);
+    if (!data) return res.status(404).json({ success: false, message: 'Not found' });
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const createPayment = async (req, res) => {
+  try {
+    const data = await Payment.create({ ...req.body, createdBy: req.user._id });
+    res.status(201).json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updatePayment = async (req, res) => {
+  try {
+    const data = await Payment.findByIdAndUpdate(
+      req.params.id, 
+      { ...req.body, updatedBy: req.user._id }, 
+      { new: true, runValidators: true }
+    );
+    if (!data) return res.status(404).json({ success: false, message: 'Not found' });
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deletePayment = async (req, res) => {
+  try {
+    const data = await Payment.findByIdAndUpdate(
+      req.params.id, 
+      { deletedAt: new Date(), updatedBy: req.user._id },
+      { new: true }
+    );
+    if (!data) return res.status(404).json({ success: false, message: 'Not found' });
+    res.json({ success: true, message: 'Deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

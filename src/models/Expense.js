@@ -2,22 +2,24 @@ import mongoose from 'mongoose';
 
 const expenseSchema = new mongoose.Schema({
   companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
-  expenseId: { type: String, required: true, unique: true },
+  expenseId: { type: String, unique: true, sparse: true },
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+  category: { type: String, required: true }, // Travel, Office Supplies, Software, Infrastructure, Other
+  amount: { type: Number, required: true },
+  expenseDate: { type: Date, default: Date.now },
+  vendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor' },
   projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
-  vendorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor' },
-  amount: { type: Number, required: true },
-  taxAmount: { type: Number, default: 0 },
-  date: { type: Date, required: true },
   receiptUrl: { type: String },
   description: { type: String },
-  approvalStatus: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
-  paymentStatus: { type: String, enum: ['Unpaid', 'Paid'], default: 'Unpaid' },
+  approvalStatus: { 
+    type: String, 
+    enum: ['Pending', 'Manager Approved', 'Finance Approved', 'Paid', 'Rejected'], 
+    default: 'Pending' 
+  },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   deletedAt: { type: Date }
 }, { timestamps: true });
 
-export default mongoose.model('Expense', expenseSchema);
+export default mongoose.models.Expense || mongoose.model('Expense', expenseSchema);

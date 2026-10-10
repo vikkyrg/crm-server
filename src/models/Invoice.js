@@ -1,35 +1,39 @@
 import mongoose from 'mongoose';
 
 const invoiceItemSchema = new mongoose.Schema({
-  description: { type: String, required: true },
-  quantity: { type: Number, required: true },
-  rate: { type: Number, required: true },
-  tax: { type: Number, default: 0 },
-  discount: { type: Number, default: 0 },
-  total: { type: Number, required: true }
+  item: { type: String, required: true },
+  description: { type: String },
+  quantity: { type: Number, default: 1 },
+  rate: { type: Number, default: 0 },
+  amount: { type: Number, default: 0 }
 });
 
 const invoiceSchema = new mongoose.Schema({
   companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
-  invoiceNumber: { type: String, required: true, unique: true },
+  branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch' },
+  invoiceNumber: { type: String, unique: true, sparse: true },
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
   projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
   quotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Quotation' },
-  invoiceDate: { type: Date, required: true, default: Date.now },
+  invoiceDate: { type: Date, default: Date.now },
   dueDate: { type: Date, required: true },
   items: [invoiceItemSchema],
   subtotal: { type: Number, default: 0 },
-  totalTax: { type: Number, default: 0 },
-  totalDiscount: { type: Number, default: 0 },
-  grandTotal: { type: Number, required: true },
+  taxAmount: { type: Number, default: 0 },
+  discountAmount: { type: Number, default: 0 },
+  totalAmount: { type: Number, required: true },
   amountPaid: { type: Number, default: 0 },
-  balance: { type: Number, required: true },
-  status: { type: String, enum: ['Draft', 'Sent', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'], default: 'Draft' },
-  pdfUrl: { type: String },
+  balance: { type: Number, default: 0 },
+  status: { 
+    type: String, 
+    enum: ['Draft', 'Sent', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'], 
+    default: 'Draft' 
+  },
   notes: { type: String },
+  pdfUrl: { type: String },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   deletedAt: { type: Date }
 }, { timestamps: true });
 
-export default mongoose.model('Invoice', invoiceSchema);
+export default mongoose.models.Invoice || mongoose.model('Invoice', invoiceSchema);

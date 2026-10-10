@@ -1,0 +1,170 @@
+{
+  "users": [
+    {
+      "_id": "6aba01e413784b91ac0fe7bd",
+      "name": "Super Admin",
+      "email": "admin@innomatrics.com",
+      "password": "$2b$10$jSWEE8dDt7/LQypyjIxp6.6V/ugQS7nFLYxkDLDt8axdRL7MQs4.q",
+      "role": "6ab7c88b69089198a7467f39",
+      "status": "Active",
+      "failedLoginAttempts": 0,
+      "createdAt": "2026-09-28T05:57:56.503Z",
+      "updatedAt": "2026-09-28T05:57:56.503Z",
+      "__v": 0
+    }
+  ],
+  "clients": [
+    {
+      "country": "India",
+      "clientType": "SMB",
+      "status": "Active",
+      "onboardingStatus": "Pending",
+      "offboardingStatus": "N/A",
+      "_id": "6ab7c89131079878515e7eba",
+      "name": "Acme Corp",
+      "leadId": "6ab7c89031079878515e7eb9",
+      "__v": 0
+    },
+    {
+      "_id": "6aba0405595f5755b3d69a9f",
+      "clientId": "INN-CLI-000001",
+      "companyName": "Acme Technologies Pvt Ltd",
+      "contactPerson": "Rajesh Kumar",
+      "email": "rajesh@acmetech.com",
+      "phone": "+91 9876543210",
+      "whatsapp": "+91 9876543210",
+      "country": "India",
+      "clientType": "SMB",
+      "leadId": "6aba0405595f5755b3d69a9e",
+      "status": "Active",
+      "onboardingStatus": "Pending",
+      "offboardingStatus": "N/A",
+      "createdAt": "2026-09-28T06:07:01.891Z",
+      "updatedAt": "2026-09-28T06:07:01.891Z",
+      "__v": 0
+    }
+  ],
+  "leads": [
+    {
+      "leadSource": "Website",
+      "estimatedBudget": 0,
+      "expectedValue": 0,
+      "priority": "Medium",
+      "isConverted": false,
+      "_id": "6ab7c89031079878515e7eb9",
+      "title": "Enterprise CRM",
+      "company": "Acme Corp",
+      "status": "Qualified",
+      "value": 150000,
+      "__v": 0
+    },
+    {
+      "leadSource": "Website",
+      "estimatedBudget": 0,
+      "expectedValue": 0,
+      "priority": "Medium",
+      "isConverted": false,
+      "_id": "6aba023923f90d12b8f3ae67",
+      "title": "Enterprise CRM",
+      "company": "Acme Corp",
+      "status": "Qualified",
+      "value": 150000,
+      "__v": 0
+    },
+    {
+      "_id": "6aba0405595f5755b3d69a9e",
+      "leadId": "INN-LEAD-000001",
+      "companyName": "Acme Technologies Pvt Ltd",
+      "contactName": "Rajesh Kumar",
+      "phone": "+91 9876543210",
+      "whatsapp": "+91 9876543210",
+      "email": "rajesh@acmetech.com",
+      "leadSource": "Website",
+      "estimatedBudget": 250000,
+      "expectedValue": 250000,
+      "status": "Won",
+      "priority": "Medium",
+      "isConverted": true,
+      "createdAt": "2026-09-28T06:07:01.713Z",
+      "updatedAt": "2026-09-28T06:07:01.927Z",
+      "__v": 0,
+      "convertedClientId": "6aba0405595f5755b3d69a9f"
+    }
+  ],
+  "projects": [
+    {
+      "teamMembers": [],
+      "budget": 0,
+      "priority": "Medium",
+      "technology": [],
+      "progressPercent": 0,
+      "_id": "6ab7c89131079878515e7ebc",
+      "clientId": "6ab7c89131079878515e7eba",
+      "quotationId": "6ab7c89131079878515e7ebb",
+      "name": "Acme CRM Deployment",
+      "status": "In Progress",
+      "__v": 0
+    },
+    {
+      "_id": "6aba0406595f5755b3d69aa2",
+      "projectId": "INN-PROJ-000001",
+      "projectName": "Acme ERP Deployment",
+      "clientId": "6aba0405595f5755b3d69a9f",
+      "teamMembers": [],
+      "budget": 236000,
+      "quotationId": "6aba0405595f5755b3d69aa0",
+      "status": "Active",
+      "priority": "Medium",
+      "technology": [],
+      "progressPercent": 0,
+      "createdAt": "2026-09-28T06:07:02.056Z",
+      "updatedAt": "2026-09-28T06:07:02.056Z",
+      "__v": 0
+    }
+  ],
+  "invoices": [
+    {
+      "subtotal": 0,
+      "taxAmount": 0,
+      "discountAmount": 0,
+      "amountPaid": 0,
+      "balance": 0,
+      "_id": "6ab7c89131079878515e7ebd",
+      "clientId": "6ab7c89131079878515e7eba",
+      "projectId": "6ab7c89131079878515e7ebc",
+      "amount": 50000,
+      "status": "Unpaid",
+      "__v": 0,
+      "invoiceDate": "2026-09-28T06:34:29.198Z",
+      "items": []
+    },
+    {
+      "_id": "6aba0406595f5755b3d69aa3",
+      "invoiceNumber": "INN-INV-000001",
+      "clientId": "6aba0405595f5755b3d69a9f",
+      "projectId": "6aba0406595f5755b3d69aa2",
+      "quotationId": "6aba0405595f5755b3d69aa0",
+      "dueDate": "2026-10-13T06:07:02.121Z",
+      "items": [
+        {
+          "item": "Advance Milestone Payment",
+          "quantity": 1,
+          "rate": 100000,
+          "amount": 100000,
+          "_id": "6aba0406595f5755b3d69aa4"
+        }
+      ],
+      "subtotal": 0,
+      "taxAmount": 0,
+      "discountAmount": 0,
+      "totalAmount": 100000,
+      "amountPaid": 100000,
+      "balance": 0,
+      "status": "Paid",
+      "invoiceDate": "2026-09-28T06:07:02.122Z",
+      "createdAt": "2026-09-28T06:07:02.123Z",
+      "updatedAt": "2026-09-28T06:07:02.225Z",
+      "__v": 0
+    }
+  ]
+}

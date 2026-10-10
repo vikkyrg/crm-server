@@ -1,4 +1,9 @@
 import express from 'express';
+import { globalSearch } from '../controllers/searchController.js';
+import { protect } from '../middleware/auth.js';
+
 const router = express.Router();
-router.get('/', (req, res) => res.json({ success: true, data: { results: [] }, errors: [] }));
+
+router.get('/', protect, globalSearch);
+
 export default router;

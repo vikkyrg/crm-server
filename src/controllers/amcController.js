@@ -1,7 +1,7 @@
 import AMC from '../models/AMC.js';
 export const getAMCs = async (req, res) => {
   try {
-    const data = await AMC.find({ deletedAt: null });
+    const data = await AMC.find({ deletedAt: null }).populate('clientId', 'companyName name email');
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

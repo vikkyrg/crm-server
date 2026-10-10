@@ -1,7 +1,11 @@
 import FollowUp from '../models/FollowUp.js';
 export const getFollowUps = async (req, res) => {
   try {
-    const data = await FollowUp.find({ deletedAt: null });
+    const data = await FollowUp.find({ deletedAt: null })
+      .populate('leadId', 'name company email phone')
+      .populate('clientId', 'companyName name email')
+      .populate('assignedEmployee', 'name email')
+      .sort({ followUpDate: 1 });
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

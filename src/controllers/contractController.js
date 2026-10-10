@@ -1,7 +1,7 @@
 import Contract from '../models/Contract.js';
 export const getContracts = async (req, res) => {
   try {
-    const data = await Contract.find({ deletedAt: null });
+    const data = await Contract.find({ deletedAt: null }).populate('clientId', 'companyName name email');
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

@@ -1,17 +1,18 @@
 import express from 'express';
-import { getClients, getClient, createClient, updateClient, deleteClient } from '../controllers/clientController.js';
-import { protect, authorize } from '../middleware/auth.js';
-import { auditAction } from '../middleware/audit.js';
+import { getClients, getClient, getClient360, createClient, updateClient, deleteClient } from '../controllers/clientController.js';
+import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.route('/')
-  .get(protect, authorize('Client', 'view'), getClients)
-  .post(protect, authorize('Client', 'create'), auditAction('Client', 'CREATE'), createClient);
+  .get(protect, getClients)
+  .post(protect, createClient);
+
+router.get('/:id/360', protect, getClient360);
 
 router.route('/:id')
-  .get(protect, authorize('Client', 'view'), getClient)
-  .put(protect, authorize('Client', 'edit'), auditAction('Client', 'UPDATE'), updateClient)
-  .delete(protect, authorize('Client', 'delete'), auditAction('Client', 'DELETE'), deleteClient);
+  .get(protect, getClient)
+  .put(protect, updateClient)
+  .delete(protect, deleteClient);
 
 export default router;

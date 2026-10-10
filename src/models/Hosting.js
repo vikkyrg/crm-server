@@ -2,21 +2,23 @@ import mongoose from 'mongoose';
 
 const hostingSchema = new mongoose.Schema({
   companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
-  provider: { type: String, required: true },
-  accountReference: { type: String },
-  serverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Server' },
-  plan: { type: String },
+  hostingProvider: { type: String, required: true },
+  accountName: { type: String },
+  serverIp: { type: String },
+  planName: { type: String },
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
+  websiteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Website' },
   startDate: { type: Date },
   expiryDate: { type: Date, required: true },
-  cost: { type: Number, default: 0 },
+  costPrice: { type: Number, default: 0 },
   sellingPrice: { type: Number, default: 0 },
-  renewalStatus: { type: String, enum: ['Active', 'Pending', 'Expired', 'Cancelled'], default: 'Active' },
-  ip: { type: String },
-  backupStatus: { type: String },
+  autoRenew: { type: Boolean, default: false },
+  controlPanelUrl: { type: String },
+  backupStatus: { type: String, enum: ['Active', 'Inactive', 'Failed'], default: 'Active' },
+  status: { type: String, enum: ['Active', 'Expiring Soon', 'Expired', 'Cancelled'], default: 'Active' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   deletedAt: { type: Date }
 }, { timestamps: true });
 
-export default mongoose.model('Hosting', hostingSchema);
+export default mongoose.models.Hosting || mongoose.model('Hosting', hostingSchema);

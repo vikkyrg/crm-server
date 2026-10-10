@@ -4,14 +4,15 @@ const attendanceSchema = new mongoose.Schema({
   companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   date: { type: Date, required: true },
-  checkInTime: { type: Date },
-  checkOutTime: { type: Date },
+  checkIn: { type: Date },
+  checkOut: { type: Date },
   workHours: { type: Number, default: 0 },
-  status: { type: String, enum: ['Present', 'Absent', 'Late', 'Half day', 'Leave', 'Holiday', 'WFH'], required: true },
-  overtimeHours: { type: Number, default: 0 },
-  notes: { type: String },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  status: { 
+    type: String, 
+    enum: ['Present', 'Absent', 'Late Arrival', 'Early Exit', 'Half Day', 'WFH', 'Holiday', 'On Leave'], 
+    default: 'Present' 
+  },
+  notes: { type: String }
 }, { timestamps: true });
 
-export default mongoose.model('Attendance', attendanceSchema);
+export default mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);

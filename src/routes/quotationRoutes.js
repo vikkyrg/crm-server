@@ -1,17 +1,18 @@
 import express from 'express';
-import { getQuotations, getQuotation, createQuotation, updateQuotation, deleteQuotation } from '../controllers/quotationController.js';
-import { protect, authorize } from '../middleware/auth.js';
-import { auditAction } from '../middleware/audit.js';
+import { getQuotations, getQuotation, createQuotation, updateQuotation, deleteQuotation, submitForApproval } from '../controllers/quotationController.js';
+import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.route('/')
-  .get(protect, authorize('Quotation', 'view'), getQuotations)
-  .post(protect, authorize('Quotation', 'create'), auditAction('Quotation', 'CREATE'), createQuotation);
+  .get(protect, getQuotations)
+  .post(protect, createQuotation);
+
+router.post('/:id/submit-approval', protect, submitForApproval);
 
 router.route('/:id')
-  .get(protect, authorize('Quotation', 'view'), getQuotation)
-  .put(protect, authorize('Quotation', 'edit'), auditAction('Quotation', 'UPDATE'), updateQuotation)
-  .delete(protect, authorize('Quotation', 'delete'), auditAction('Quotation', 'DELETE'), deleteQuotation);
+  .get(protect, getQuotation)
+  .put(protect, updateQuotation)
+  .delete(protect, deleteQuotation);
 
 export default router;

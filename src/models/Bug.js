@@ -2,15 +2,15 @@ import mongoose from 'mongoose';
 
 const bugSchema = new mongoose.Schema({
   companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
-  bugId: { type: String, required: true, unique: true },
+  bugId: { type: String, unique: true, sparse: true },
   projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true },
-  module: { type: String },
+  moduleName: { type: String },
   description: { type: String, required: true },
   screenshotUrl: { type: String },
-  priority: { type: String, enum: ['Low', 'Medium', 'High', 'Critical'], default: 'Medium' },
-  severity: { type: String, enum: ['Low', 'Minor', 'Major', 'Critical', 'Blocker'], default: 'Major' },
-  developer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  qa: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  priority: { type: String, enum: ['Low', 'Medium', 'High', 'Urgent'], default: 'Medium' },
+  severity: { type: String, enum: ['Minor', 'Major', 'Critical', 'Blocker'], default: 'Minor' },
+  assignedDeveloper: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  qaAssigned: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: { type: String, enum: ['Open', 'Assigned', 'In Progress', 'Fixed', 'QA', 'Reopened', 'Closed'], default: 'Open' },
   resolvedDate: { type: Date },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -18,4 +18,4 @@ const bugSchema = new mongoose.Schema({
   deletedAt: { type: Date }
 }, { timestamps: true });
 
-export default mongoose.model('Bug', bugSchema);
+export default mongoose.models.Bug || mongoose.model('Bug', bugSchema);

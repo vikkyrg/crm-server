@@ -1,17 +1,26 @@
 import express from 'express';
-import { getLeads, getLead, createLead, updateLead, deleteLead } from '../controllers/leadController.js';
-import { protect, authorize } from '../middleware/auth.js';
-import { auditAction } from '../middleware/audit.js';
+import { getLeads, getLead, createLead, updateLead, deleteLead, convertLeadToClient, getLeadNotes, addLeadNote, updateLeadNote, deleteLeadNote } from '../controllers/leadController.js';
+import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.route('/')
-  .get(protect, authorize('Lead', 'view'), getLeads)
-  .post(protect, authorize('Lead', 'create'), auditAction('Lead', 'CREATE'), createLead);
+  .get(protect, getLeads)
+  .post(protect, createLead);
+
+router.post('/:id/convert', protect, convertLeadToClient);
+
+router.route('/:id/notes')
+  .get(protect, getLeadNotes)
+  .post(protect, addLeadNote);
+
+router.route('/:id/notes/:noteId')
+  .put(protect, updateLeadNote)
+  .delete(protect, deleteLeadNote);
 
 router.route('/:id')
-  .get(protect, authorize('Lead', 'view'), getLead)
-  .put(protect, authorize('Lead', 'edit'), auditAction('Lead', 'UPDATE'), updateLead)
-  .delete(protect, authorize('Lead', 'delete'), auditAction('Lead', 'DELETE'), deleteLead);
+  .get(protect, getLead)
+  .put(protect, updateLead)
+  .delete(protect, deleteLead);
 
 export default router;

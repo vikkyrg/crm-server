@@ -2,18 +2,23 @@ import mongoose from 'mongoose';
 
 const followUpSchema = new mongoose.Schema({
   companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
-  referenceId: { type: mongoose.Schema.Types.ObjectId, required: true }, // Poloymorphic ref to Lead, Client, etc.
-  referenceType: { type: String, enum: ['Lead', 'Client', 'Project'], required: true },
-  date: { type: Date, required: true },
-  time: { type: String },
-  type: { type: String, enum: ['Call', 'Email', 'Meeting', 'WhatsApp', 'Other'], required: true },
-  assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true },
+  clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
+  followUpDate: { type: Date, required: true },
+  followUpTime: { type: String },
+  followUpType: { 
+    type: String, 
+    enum: ['Call', 'Meeting', 'Email', 'WhatsApp', 'Demo', 'Other'], 
+    default: 'Call' 
+  },
   notes: { type: String },
   outcome: { type: String },
-  status: { type: String, enum: ['Pending', 'Completed', 'Overdue', 'Cancelled'], default: 'Pending' },
-  nextFollowUpId: { type: mongoose.Schema.Types.ObjectId, ref: 'FollowUp' },
+  nextFollowUp: { type: Date },
+  assignedEmployee: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  status: { type: String, enum: ['Pending', 'Completed', 'Cancelled'], default: 'Pending' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  deletedAt: { type: Date }
 }, { timestamps: true });
 
-export default mongoose.model('FollowUp', followUpSchema);
+export default mongoose.models.FollowUp || mongoose.model('FollowUp', followUpSchema);

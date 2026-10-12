@@ -1,5 +1,14 @@
 import express from 'express';
-import { getQuotations, getQuotation, createQuotation, updateQuotation, deleteQuotation, submitForApproval } from '../controllers/quotationController.js';
+import { 
+  getQuotations, 
+  getQuotation, 
+  createQuotation, 
+  updateQuotation, 
+  deleteQuotation, 
+  submitForApproval,
+  convertToInvoice,
+  convertToProject 
+} from '../controllers/quotationController.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -9,6 +18,8 @@ router.route('/')
   .post(protect, createQuotation);
 
 router.post('/:id/submit-approval', protect, submitForApproval);
+router.post('/:id/convert-to-invoice', protect, convertToInvoice);
+router.post('/:id/convert-to-project', protect, convertToProject);
 
 router.route('/:id')
   .get(protect, getQuotation)

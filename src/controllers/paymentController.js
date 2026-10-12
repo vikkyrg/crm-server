@@ -51,6 +51,17 @@ export const createPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Payment amount must be greater than zero' });
     }
 
+    if (invoiceId) {
+      const invoice = await Invoice.findById(invoiceId);
+      if (!invoice) return res.status(404).json({ success: false, message: 'Invoice not found' });
+      if (Number(amount) > invoice.balance) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Payment amount (₹${amount}) exceeds invoice outstanding balance (₹${invoice.balance})` 
+        });
+      }
+    }
+
     const paymentId = await generateNextNumber('PAYMENT');
     const payment = await Payment.create({
       ...req.body,
@@ -58,12 +69,14 @@ export const createPayment = async (req, res) => {
       createdBy: req.user?._id
     });
 
-    // Automatically update connected Invoice balance & status
+    // Recompute total valid payments from DB for absolute consistency
     if (invoiceId) {
+      const allValidPayments = await Payment.find({ invoiceId, deletedAt: null });
+      const totalPaid = allValidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
       const invoice = await Invoice.findById(invoiceId);
       if (invoice) {
-        invoice.amountPaid = (invoice.amountPaid || 0) + Number(amount);
-        invoice.balance = Math.max(0, invoice.totalAmount - invoice.amountPaid);
+        invoice.amountPaid = totalPaid;
+        invoice.balance = Math.max(0, (invoice.totalAmount || 0) - totalPaid);
 
         if (invoice.balance <= 0) {
           invoice.status = 'Paid';
@@ -102,6 +115,20 @@ export const updatePayment = async (req, res) => {
       { new: true, runValidators: true }
     );
 
+    if (data.invoiceId) {
+      const allValidPayments = await Payment.find({ invoiceId: data.invoiceId, deletedAt: null });
+      const totalPaid = allValidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const invoice = await Invoice.findById(data.invoiceId);
+      if (invoice) {
+        invoice.amountPaid = totalPaid;
+        invoice.balance = Math.max(0, (invoice.totalAmount || 0) - totalPaid);
+        if (invoice.balance <= 0) invoice.status = 'Paid';
+        else if (invoice.amountPaid > 0) invoice.status = 'Partially Paid';
+        else invoice.status = 'Sent';
+        await invoice.save();
+      }
+    }
+
     await logAudit({
       userId: req.user?._id,
       action: 'UPDATE_PAYMENT',
@@ -120,8 +147,28 @@ export const updatePayment = async (req, res) => {
 
 export const deletePayment = async (req, res) => {
   try {
-    const data = await Payment.findByIdAndUpdate(req.params.id, { deletedAt: new Date() }, { new: true });
-    res.json({ success: true, message: 'Payment record deleted successfully' });
+    const payment = await Payment.findById(req.params.id);
+    if (!payment) return res.status(404).json({ success: false, message: 'Payment record not found' });
+
+    payment.deletedAt = new Date();
+    payment.updatedBy = req.user?._id;
+    await payment.save();
+
+    if (payment.invoiceId) {
+      const allValidPayments = await Payment.find({ invoiceId: payment.invoiceId, deletedAt: null });
+      const totalPaid = allValidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const invoice = await Invoice.findById(payment.invoiceId);
+      if (invoice) {
+        invoice.amountPaid = totalPaid;
+        invoice.balance = Math.max(0, (invoice.totalAmount || 0) - totalPaid);
+        if (invoice.balance <= 0 && invoice.totalAmount > 0) invoice.status = 'Paid';
+        else if (invoice.amountPaid > 0) invoice.status = 'Partially Paid';
+        else invoice.status = 'Sent';
+        await invoice.save();
+      }
+    }
+
+    res.json({ success: true, message: 'Payment record deleted and invoice balance recomputed successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -1,5 +1,8 @@
 import Quotation from '../models/Quotation.js';
 import Approval from '../models/Approval.js';
+import Invoice from '../models/Invoice.js';
+import Project from '../models/Project.js';
+import Milestone from '../models/Milestone.js';
 import { generateNextNumber } from '../services/numberingService.js';
 import { logAudit } from '../services/auditService.js';
 
@@ -168,6 +171,124 @@ export const deleteQuotation = async (req, res) => {
   try {
     const data = await Quotation.findByIdAndUpdate(req.params.id, { deletedAt: new Date() }, { new: true });
     res.json({ success: true, message: 'Quotation deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const convertToInvoice = async (req, res) => {
+  try {
+    const quotation = await Quotation.findById(req.params.id);
+    if (!quotation) return res.status(404).json({ success: false, message: 'Quotation not found' });
+    if (!quotation.clientId) return res.status(400).json({ success: false, message: 'Quotation must have an associated Client to convert to invoice' });
+
+    const invoiceNumber = await generateNextNumber('INVOICE');
+    const invoiceItems = (quotation.items || []).map(i => ({
+      item: i.item || 'Service',
+      description: i.description || '',
+      quantity: i.quantity || 1,
+      rate: i.rate || 0,
+      amount: i.amount || (i.quantity * i.rate)
+    }));
+
+    const invoice = await Invoice.create({
+      invoiceNumber,
+      clientId: quotation.clientId,
+      quotationId: quotation._id,
+      invoiceDate: new Date(),
+      dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+      items: invoiceItems,
+      subtotal: quotation.subtotal || quotation.totalAmount,
+      taxAmount: quotation.taxTotal || 0,
+      discountAmount: quotation.discountTotal || 0,
+      totalAmount: quotation.totalAmount || 0,
+      amountPaid: 0,
+      balance: quotation.totalAmount || 0,
+      status: 'Sent',
+      createdBy: req.user?._id
+    });
+
+    quotation.status = 'Accepted';
+    quotation.approvalStatus = 'Approved';
+    await quotation.save();
+
+    await logAudit({
+      userId: req.user?._id,
+      action: 'CONVERT_QUOTATION_TO_INVOICE',
+      module: 'Quotation',
+      recordId: quotation._id,
+      newValues: { invoiceId: invoice._id, invoiceNumber },
+      req
+    });
+
+    res.json({
+      success: true,
+      message: 'Quotation successfully converted to Invoice!',
+      data: { invoice, quotation }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const convertToProject = async (req, res) => {
+  try {
+    const quotation = await Quotation.findById(req.params.id);
+    if (!quotation) return res.status(404).json({ success: false, message: 'Quotation not found' });
+    if (!quotation.clientId) return res.status(400).json({ success: false, message: 'Quotation must have an associated Client to convert to project' });
+
+    const projectId = await generateNextNumber('PROJECT');
+    const project = await Project.create({
+      projectId,
+      projectName: quotation.title || 'Client Project',
+      clientId: quotation.clientId,
+      quotationId: quotation._id,
+      budget: quotation.totalAmount || 0,
+      startDate: new Date(),
+      expectedEndDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+      status: 'Planning',
+      priority: 'Medium',
+      createdBy: req.user?._id
+    });
+
+    // Auto-create 7 standardized milestones
+    const defaultMilestones = [
+      'Requirement Analysis',
+      'UI/UX Design',
+      'Development',
+      'QA & Testing',
+      'Client UAT',
+      'Deployment',
+      'Handover'
+    ];
+
+    for (let i = 0; i < defaultMilestones.length; i++) {
+      await Milestone.create({
+        projectId: project._id,
+        title: defaultMilestones[i],
+        status: i === 0 ? 'In Progress' : 'Pending',
+        completionPercent: 0,
+        createdBy: req.user?._id
+      });
+    }
+
+    quotation.status = 'Accepted';
+    await quotation.save();
+
+    await logAudit({
+      userId: req.user?._id,
+      action: 'CONVERT_QUOTATION_TO_PROJECT',
+      module: 'Quotation',
+      recordId: quotation._id,
+      newValues: { projectId: project._id, projectIdNumber: projectId },
+      req
+    });
+
+    res.json({
+      success: true,
+      message: 'Quotation successfully converted to Project with standard milestones!',
+      data: { project, quotation }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

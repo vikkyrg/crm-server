@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 const taskSchema = new mongoose.Schema({
   companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
   taskId: { type: String, unique: true, sparse: true },
-  projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true },
+  projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
   taskName: { type: String, required: true },
   description: { type: String },
   assignedEmployee: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

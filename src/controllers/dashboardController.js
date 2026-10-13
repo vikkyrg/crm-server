@@ -11,6 +11,7 @@ import Ticket from '../models/Ticket.js';
 import Task from '../models/Task.js';
 import Approval from '../models/Approval.js';
 import FollowUp from '../models/FollowUp.js';
+import CreditNote from '../models/CreditNote.js';
 
 export const getManagementMetrics = async (req, res) => {
   try {
@@ -24,23 +25,34 @@ export const getManagementMetrics = async (req, res) => {
       totalPayments,
       totalExpenses,
       openTicketsCount,
-      expiringDomainsCount
+      expiringDomainsCount,
+      clientsCount,
+      completedProjectsCount,
+      creditNotes
     ] = await Promise.all([
       Lead.countDocuments({ status: 'New', deletedAt: null }),
       Lead.countDocuments({ status: 'Qualified', deletedAt: null }),
       Lead.countDocuments({ status: 'Won', deletedAt: null }),
       Project.countDocuments({ status: 'Active', deletedAt: null }),
       Project.countDocuments({ status: 'Delayed', deletedAt: null }),
-      Invoice.find({ deletedAt: null }, 'totalAmount balance status'),
+      Invoice.find({ deletedAt: null }, 'totalAmount balance status dueDate'),
       Payment.find({ deletedAt: null }, 'amount'),
       Expense.find({ deletedAt: null }, 'amount'),
       Ticket.countDocuments({ status: { $ne: 'Closed' }, deletedAt: null }),
-      Domain.countDocuments({ status: 'Expiring Soon', deletedAt: null })
+      Domain.countDocuments({ status: 'Expiring Soon', deletedAt: null }),
+      Client.countDocuments({ deletedAt: null }),
+      Project.countDocuments({ status: 'Completed', deletedAt: null }),
+      CreditNote.find({ deletedAt: null }, 'totalCreditAmount')
     ]);
 
     const totalRevenue = totalInvoicedAmount(totalInvoices);
     const totalCollected = totalPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalCredited = creditNotes.reduce((sum, cn) => sum + (cn.totalCreditAmount || 0), 0);
     const totalOutstanding = totalInvoices.reduce((sum, i) => sum + (i.balance || 0), 0);
+    const now = new Date();
+    const overdueReceivables = totalInvoices
+      .filter(i => i.status === 'Overdue' || (i.dueDate && new Date(i.dueDate) < now && (i.balance || 0) > 0))
+      .reduce((sum, i) => sum + (i.balance || 0), 0);
     const totalExpensesCost = totalExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     const netProfit = totalCollected - totalExpensesCost;
 
@@ -48,6 +60,7 @@ export const getManagementMetrics = async (req, res) => {
       success: true,
       data: {
         sales: {
+          totalClients: clientsCount,
           newLeads: newLeadsCount,
           qualifiedLeads: qualifiedLeadsCount,
           wonLeads: wonLeadsCount
@@ -55,13 +68,16 @@ export const getManagementMetrics = async (req, res) => {
         finance: {
           revenue: totalRevenue,
           collected: totalCollected,
+          credited: totalCredited,
           outstanding: totalOutstanding,
+          overdue: overdueReceivables,
           expenses: totalExpensesCost,
           profit: netProfit
         },
         operations: {
           activeProjects: activeProjectsCount,
           delayedProjects: delayedProjectsCount,
+          completedProjects: completedProjectsCount,
           openTickets: openTicketsCount
         },
         recurring: {

@@ -9,6 +9,8 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   phone: { type: String },
   role: { type: mongoose.Schema.Types.ObjectId, ref: 'Role' },
+  userType: { type: String, enum: ['Staff', 'Client', 'Vendor'], default: 'Staff' },
+  clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client' },
   status: { type: String, enum: ['Active', 'Inactive', 'Locked'], default: 'Active' },
   failedLoginAttempts: { type: Number, default: 0 },
   lastLogin: { type: Date },

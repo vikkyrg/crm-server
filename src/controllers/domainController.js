@@ -69,7 +69,44 @@ export const getDomain = async (req, res) => {
 
 export const createDomain = async (req, res) => {
   try {
-    const data = await Domain.create({ ...req.body, createdBy: req.user?._id });
+    const { domainName, clientId, expiryDate, registrar, registrationDate, autoRenew, renewalCost, notes, status, renewalStatus } = req.body;
+
+    if (!domainName || !domainName.trim()) {
+      return res.status(400).json({ success: false, message: 'Domain name is required' });
+    }
+    if (!clientId) {
+      return res.status(400).json({ success: false, message: 'Client association is required' });
+    }
+    if (!expiryDate) {
+      return res.status(400).json({ success: false, message: 'Domain expiry date is required' });
+    }
+
+    const cleanDomain = domainName.trim().toLowerCase().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+
+    // Duplicate check
+    const existing = await Domain.findOne({ domainName: cleanDomain, deletedAt: null });
+    if (existing) {
+      return res.status(409).json({ 
+        success: false, 
+        message: `Domain "${cleanDomain}" is already registered in the system.` 
+      });
+    }
+
+    const data = await Domain.create({
+      ...req.body,
+      domainName: cleanDomain,
+      createdBy: req.user?._id
+    });
+
+    await logAudit({
+      userId: req.user?._id,
+      action: 'CREATE_DOMAIN',
+      module: 'Domain',
+      recordId: data._id,
+      newValues: data.toObject(),
+      req
+    });
+
     res.status(201).json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

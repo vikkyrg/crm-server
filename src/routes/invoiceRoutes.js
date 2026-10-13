@@ -1,5 +1,5 @@
 import express from 'express';
-import { getInvoices, getInvoice, createInvoice, updateInvoice, deleteInvoice } from '../controllers/invoiceController.js';
+import { getInvoices, getInvoice, createInvoice, updateInvoice, deleteInvoice, getInvoicePrintHtml, sendInvoiceEmailHandler } from '../controllers/invoiceController.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { auditAction } from '../middleware/audit.js';
 
@@ -8,6 +8,12 @@ const router = express.Router();
 router.route('/')
   .get(protect, authorize('Invoice', 'view'), getInvoices)
   .post(protect, authorize('Invoice', 'create'), auditAction('Invoice', 'CREATE'), createInvoice);
+
+router.route('/:id/print-html')
+  .get(getInvoicePrintHtml);
+
+router.route('/:id/send-email')
+  .post(protect, authorize('Invoice', 'edit'), sendInvoiceEmailHandler);
 
 router.route('/:id')
   .get(protect, authorize('Invoice', 'view'), getInvoice)

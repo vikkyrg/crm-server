@@ -10,6 +10,7 @@ const documentSchema = new mongoose.Schema({
   fileType: { type: String },
   fileSizeBytes: { type: Number },
   version: { type: Number, default: 1 },
+  localFilePath: { type: String },
   expiryDate: { type: Date },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

@@ -9,17 +9,30 @@ import Task from '../models/Task.js';
 import Attendance from '../models/Attendance.js';
 import Leave from '../models/Leave.js';
 
-// CLIENT PORTAL API
+// CLIENT PORTAL API - Strict Tenant Isolation
 export const getClientPortalData = async (req, res) => {
   try {
-    // Find client by logged in user's email or converted client ID
-    const client = await Client.findOne({ email: req.user.email, deletedAt: null });
+    let client = null;
+    
+    // 1. Direct explicit binding on user account
+    if (req.user.clientId) {
+      client = await Client.findOne({ _id: req.user.clientId, deletedAt: null });
+    }
+    
+    // 2. Fallback to authenticated email match
+    if (!client && req.user.email) {
+      client = await Client.findOne({ email: req.user.email.toLowerCase().trim(), deletedAt: null });
+    }
+
     if (!client) {
-      return res.status(404).json({ success: false, message: 'Client profile not found for this account' });
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Access Denied: Your account is not linked to any authorized Client Organization.' 
+      });
     }
 
     const [projects, quotations, invoices, payments, tickets, documents] = await Promise.all([
-      Project.find({ clientId: client._id, deletedAt: null }),
+      Project.find({ clientId: client._id, deletedAt: null }).select('-teamMembers'),
       Quotation.find({ clientId: client._id, deletedAt: null }),
       Invoice.find({ clientId: client._id, deletedAt: null }),
       Payment.find({ clientId: client._id, deletedAt: null }),

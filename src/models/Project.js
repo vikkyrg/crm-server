@@ -6,12 +6,28 @@ const projectSchema = new mongoose.Schema({
   projectName: { type: String, required: true },
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
   serviceType: { type: String },
+  serviceCatalogIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ServiceCatalog' }],
+  assignedServices: [{
+    serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceCatalog' },
+    serviceName: { type: String },
+    agreedPrice: { type: Number, default: 0 }
+  }],
   startDate: { type: Date },
   expectedEndDate: { type: Date },
   actualEndDate: { type: Date },
   projectManager: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   teamMembers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   budget: { type: Number, default: 0 },
+  advanceType: { type: String, enum: ['Percentage', 'Fixed', 'None'], default: 'None' },
+  advancePercentage: { type: Number, default: 0 },
+  advanceRequired: { type: Number, default: 0 },
+  milestoneSchedule: [{
+    milestoneName: { type: String },
+    percentage: { type: Number },
+    amount: { type: Number },
+    expectedDate: { type: Date },
+    isBilled: { type: Boolean, default: false }
+  }],
   quotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Quotation' },
   contractId: { type: mongoose.Schema.Types.ObjectId, ref: 'Contract' },
   status: { 

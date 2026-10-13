@@ -12,7 +12,7 @@ const paymentSchema = new mongoose.Schema({
     enum: ['Bank Transfer', 'UPI', 'Cash', 'Cheque', 'Payment Gateway', 'Other'], 
     default: 'Bank Transfer' 
   },
-  transactionReference: { type: String },
+  transactionReference: { type: String, trim: true },
   bankName: { type: String },
   gatewayName: { type: String },
   notes: { type: String },
@@ -21,5 +21,15 @@ const paymentSchema = new mongoose.Schema({
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   deletedAt: { type: Date }
 }, { timestamps: true });
+
+// Prevent duplicate transaction references across valid payment records
+paymentSchema.index(
+  { transactionReference: 1 }, 
+  { 
+    unique: true, 
+    sparse: true, 
+    partialFilterExpression: { transactionReference: { $type: 'string', $gt: '' }, deletedAt: null } 
+  }
+);
 
 export default mongoose.models.Payment || mongoose.model('Payment', paymentSchema);

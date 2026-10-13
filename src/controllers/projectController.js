@@ -11,6 +11,7 @@ import Payment from '../models/Payment.js';
 import Website from '../models/Website.js';
 import Document from '../models/Document.js';
 import AuditLog from '../models/AuditLog.js';
+import Employee from '../models/Employee.js';
 import { generateNextNumber } from '../services/numberingService.js';
 import { logAudit } from '../services/auditService.js';
 
@@ -104,27 +105,100 @@ export const getProject360 = async (req, res) => {
     // Financial calculations for Profitability:
     // Revenue = Total Payments received for this project
     const revenue = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
-    // Costs: Direct expenses + Time Tracking Cost
+    // Costs: Direct expenses + Time Tracking Cost based on actual employee compensation
     const directExpensesCost = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     const laborHours = timeEntries.reduce((sum, t) => sum + (t.durationHours || 0), 0);
-    const estimatedHourlyCost = 500; // Default employee cost per hour
-    const laborCost = laborHours * estimatedHourlyCost;
-    const totalCost = directExpensesCost + laborCost;
-    const projectProfit = revenue - totalCost;
-    const marginPercent = revenue > 0 ? ((projectProfit / revenue) * 100).toFixed(2) : 0;
+
+    // Fetch employee profiles for team members and time tracking users
+    const employeeUserIds = [...new Set(timeEntries.map(t => t.employeeId?._id || t.employeeId).filter(Boolean))];
+    const employees = await Employee.find({ userId: { $in: employeeUserIds }, deletedAt: null });
+    const empRateMap = {};
+    employees.forEach(emp => {
+      // Monthly working hours standard: 160 hours (20 days * 8 hours)
+      const monthlyCompensation = (emp.basicSalary || 0) + (emp.allowances || 0);
+      const computedHourlyRate = monthlyCompensation > 0 ? (monthlyCompensation / 160) : 0;
+      empRateMap[String(emp.userId)] = computedHourlyRate;
+    });
+
+    let laborCost = 0;
+    let actualEntriesCount = 0;
+    let unconfiguredEntriesCount = 0;
+
+    timeEntries.forEach(entry => {
+      const uId = String(entry.employeeId?._id || entry.employeeId);
+      const customRate = entry.hourlyRate;
+      let rateToUse = 0;
+
+      if (customRate && customRate > 0) {
+        rateToUse = customRate;
+        actualEntriesCount++;
+      } else if (empRateMap[uId] && empRateMap[uId] > 0) {
+        rateToUse = empRateMap[uId];
+        actualEntriesCount++;
+      } else {
+        rateToUse = 0; // Explicitly 0 if unconfigured; do not fabricate hidden values
+        unconfiguredEntriesCount++;
+      }
+      laborCost += (entry.durationHours || 0) * rateToUse;
+    });
+
+    laborCost = Number(laborCost.toFixed(2));
+    const isCostIncomplete = unconfiguredEntriesCount > 0;
+    const totalCost = Number((directExpensesCost + laborCost).toFixed(2));
+    const projectProfit = Number((revenue - totalCost).toFixed(2));
+    const marginPercent = revenue > 0 ? Number(((projectProfit / revenue) * 100).toFixed(2)) : 0;
+
+    // Detailed Project Financial Metrics
+    const agreedProjectValue = project.budget || 0;
+    const advanceRequired = project.advanceRequired || (
+      project.advanceType === 'Percentage' ? (agreedProjectValue * (project.advancePercentage || 0) / 100) : 0
+    );
+    const advanceInvoices = invoices.filter(i => i.invoiceType === 'Advance');
+    const advanceInvoiceIds = new Set(advanceInvoices.map(i => String(i._id)));
+    const advanceReceived = payments
+      .filter(p => p.invoiceId && advanceInvoiceIds.has(String(p.invoiceId)))
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    const subsequentReceived = Math.max(0, revenue - advanceReceived);
+    const totalInvoiced = invoices.reduce((sum, i) => sum + (i.totalAmount || 0), 0);
+    const outstandingInvoiceBalance = Math.max(0, invoices.reduce((sum, i) => sum + (i.balance || 0), 0));
+    const unbilledProjectValue = Math.max(0, agreedProjectValue - totalInvoiced);
+    const now = new Date();
+    const overdueInvoiceAmount = invoices
+      .filter(i => i.status === 'Overdue' || (i.dueDate && new Date(i.dueDate) < now && (i.balance || 0) > 0))
+      .reduce((sum, i) => sum + (i.balance || 0), 0);
 
     res.json({
       success: true,
       data: {
         project,
+        financialSummary: {
+          agreedProjectValue,
+          advanceRequired,
+          advanceReceived,
+          subsequentReceived,
+          totalReceived: revenue,
+          totalInvoiced,
+          outstandingInvoiceBalance,
+          unbilledProjectValue,
+          overdueInvoiceAmount,
+          directExpensesCost,
+          laborCost,
+          totalCost,
+          projectProfit,
+          marginPercent
+        },
         profitability: {
           revenue,
           directExpensesCost,
           laborHours,
           laborCost,
+          isCostIncomplete,
+          actualEntriesCount,
+          unconfiguredEntriesCount,
+          isLaborCostEstimated: isCostIncomplete,
           totalCost,
           projectProfit,
-          marginPercent: Number(marginPercent)
+          marginPercent
         },
         milestones,
         tasks,

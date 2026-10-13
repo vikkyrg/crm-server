@@ -18,7 +18,9 @@ const defaultPrefixes = {
   WEBSITE: 'INN-WEB-',
   DOMAIN: 'INN-DOM-',
   HOSTING: 'INN-HST-',
-  AMC: 'INN-AMC-'
+  AMC: 'INN-AMC-',
+  SERVICE: 'INN-SRV-',
+  CREDITNOTE: 'INN-CN-'
 };
 
 export const generateNextNumber = async (moduleName, companyId = null) => {

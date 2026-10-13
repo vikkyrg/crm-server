@@ -11,8 +11,8 @@ export const logAudit = async ({
   req = null
 }) => {
   try {
-    const ipAddress = req ? (req.headers['x-forwarded-for'] || req.socket.remoteAddress) : null;
-    const deviceInfo = req ? req.headers['user-agent'] : null;
+    const ipAddress = req?.headers?.['x-forwarded-for'] || req?.socket?.remoteAddress || null;
+    const deviceInfo = req?.headers?.['user-agent'] || null;
 
     await AuditLog.create({
       user: userId,

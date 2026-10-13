@@ -16,6 +16,7 @@ import Payment from '../models/Payment.js';
 import Expense from '../models/Expense.js';
 import Document from '../models/Document.js';
 import AuditLog from '../models/AuditLog.js';
+import CreditNote from '../models/CreditNote.js';
 import { generateNextNumber } from '../services/numberingService.js';
 import { logAudit } from '../services/auditService.js';
 
@@ -39,7 +40,7 @@ export const getClients = async (req, res) => {
     }
 
     const skip = (Number(page) - 1) * Number(limit);
-    const data = await Client.find(query)
+    const clients = await Client.find(query)
       .populate('accountManager', 'name email')
       .populate('salesperson', 'name email')
       .sort({ createdAt: -1 })
@@ -48,9 +49,47 @@ export const getClients = async (req, res) => {
 
     const total = await Client.countDocuments(query);
 
+    // Enrich clients with lightweight aggregated metrics
+    const clientIds = clients.map(c => c._id);
+    const [allProjects, allInvoices, allPayments] = await Promise.all([
+      Project.find({ clientId: { $in: clientIds }, deletedAt: null }, 'clientId budget serviceType assignedServices'),
+      Invoice.find({ clientId: { $in: clientIds }, deletedAt: null }, 'clientId totalAmount balance'),
+      Payment.find({ clientId: { $in: clientIds }, deletedAt: null }, 'clientId amount')
+    ]);
+
+    const enrichedClients = clients.map(c => {
+      const cIdStr = String(c._id);
+      const cProjects = allProjects.filter(p => String(p.clientId) === cIdStr);
+      const cInvoices = allInvoices.filter(i => String(i.clientId) === cIdStr);
+      const cPayments = allPayments.filter(p => String(p.clientId) === cIdStr);
+
+      const totalContractValue = cProjects.reduce((sum, p) => sum + (p.budget || 0), 0);
+      const totalInvoiced = cInvoices.reduce((sum, i) => sum + (i.totalAmount || 0), 0);
+      const totalPaid = cPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const totalOutstanding = Math.max(0, cInvoices.reduce((sum, i) => sum + (i.balance || 0), 0));
+
+      const servicesSet = new Set();
+      cProjects.forEach(p => {
+        if (p.serviceType) servicesSet.add(p.serviceType);
+        if (p.assignedServices && Array.isArray(p.assignedServices)) {
+          p.assignedServices.forEach(s => s.serviceName && servicesSet.add(s.serviceName));
+        }
+      });
+
+      return {
+        ...c.toObject(),
+        projectsCount: cProjects.length,
+        servicesList: Array.from(servicesSet),
+        totalContractValue,
+        totalInvoiced,
+        totalPaid,
+        totalOutstanding
+      };
+    });
+
     res.json({
       success: true,
-      data,
+      data: enrichedClients,
       pagination: { total, page: Number(page), limit: Number(limit), pages: Math.ceil(total / limit) }
     });
   } catch (error) {
@@ -97,7 +136,8 @@ export const getClient360 = async (req, res) => {
       payments,
       expenses,
       documents,
-      audits
+      audits,
+      creditNotes
     ] = await Promise.all([
       Contact.find({ clientId, deletedAt: null }),
       Lead.find({ convertedClientId: clientId, deletedAt: null }),
@@ -114,13 +154,35 @@ export const getClient360 = async (req, res) => {
       Payment.find({ clientId, deletedAt: null }),
       Expense.find({ clientId, deletedAt: null }),
       Document.find({ relatedRecordId: clientId, deletedAt: null }),
-      AuditLog.find({ recordId: clientId }).sort({ createdAt: -1 }).limit(20)
+      AuditLog.find({ recordId: clientId }).sort({ createdAt: -1 }).limit(20),
+      CreditNote.find({ clientId, deletedAt: null })
     ]);
 
-    // Financial totals summary
+    // Financial totals summary with decimal safety
+    const totalContractValue = projects.reduce((sum, p) => sum + (p.budget || 0), 0);
     const totalInvoiced = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
     const totalPaid = payments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
-    const totalOutstanding = totalInvoiced - totalPaid;
+    const totalCredited = creditNotes.reduce((sum, cn) => sum + (cn.totalCreditAmount || 0), 0);
+    const totalOutstanding = Math.max(0, invoices.reduce((sum, inv) => sum + (inv.balance || 0), 0));
+    const now = new Date();
+    const totalOverdue = invoices
+      .filter(inv => inv.status === 'Overdue' || (inv.dueDate && new Date(inv.dueDate) < now && (inv.balance || 0) > 0))
+      .reduce((sum, inv) => sum + (inv.balance || 0), 0);
+
+    // Advance received: Payments linked to advance invoices or projects with advance requirements
+    const advanceInvoices = invoices.filter(inv => inv.invoiceType === 'Advance');
+    const advanceInvoiceIds = new Set(advanceInvoices.map(i => String(i._id)));
+    const totalAdvanceReceived = payments
+      .filter(p => p.invoiceId && advanceInvoiceIds.has(String(p.invoiceId)))
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    const totalUnbilled = Math.max(0, totalContractValue - totalInvoiced);
+
+    // Project breakdown
+    const activeProjects = projects.filter(p => ['Active', 'In Progress'].includes(p.status)).length;
+    const completedProjects = projects.filter(p => p.status === 'Completed').length;
+    const delayedProjects = projects.filter(p => p.status === 'Delayed').length;
+    const pendingProjects = projects.filter(p => ['Planning', 'On Hold', 'Testing'].includes(p.status)).length;
 
     res.json({
       success: true,
@@ -128,9 +190,18 @@ export const getClient360 = async (req, res) => {
         client,
         summary: {
           totalProjects: projects.length,
+          activeProjects,
+          completedProjects,
+          delayedProjects,
+          pendingProjects,
+          totalContractValue,
           totalInvoiced,
           totalPaid,
+          totalAdvanceReceived,
+          totalCredited,
           totalOutstanding,
+          totalOverdue,
+          totalUnbilled,
           activeTickets: tickets.filter(t => t.status !== 'Closed').length,
           activeAmcs: amcs.filter(a => a.renewalStatus === 'Active').length
         },
@@ -149,6 +220,7 @@ export const getClient360 = async (req, res) => {
         payments,
         expenses,
         documents,
+        creditNotes,
         activityTimeline: audits
       }
     });

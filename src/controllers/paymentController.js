@@ -46,44 +46,88 @@ export const getPayment = async (req, res) => {
 
 export const createPayment = async (req, res) => {
   try {
-    const { clientId, invoiceId, amount } = req.body;
-    if (!amount || amount <= 0) {
+    const { clientId, invoiceId, amount, transactionReference } = req.body;
+    const numAmount = Number(amount);
+    if (!numAmount || numAmount <= 0) {
       return res.status(400).json({ success: false, message: 'Payment amount must be greater than zero' });
     }
 
-    if (invoiceId) {
-      const invoice = await Invoice.findById(invoiceId);
-      if (!invoice) return res.status(404).json({ success: false, message: 'Invoice not found' });
-      if (Number(amount) > invoice.balance) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `Payment amount (₹${amount}) exceeds invoice outstanding balance (₹${invoice.balance})` 
+    // Duplicate transaction reference protection
+    if (transactionReference && transactionReference.trim()) {
+      const existingRef = await Payment.findOne({
+        transactionReference: transactionReference.trim(),
+        deletedAt: null
+      });
+      if (existingRef) {
+        return res.status(409).json({
+          success: false,
+          message: `A payment with transaction reference "${transactionReference}" has already been recorded.`
         });
       }
     }
 
-    const paymentId = await generateNextNumber('PAYMENT');
-    const payment = await Payment.create({
-      ...req.body,
-      paymentId,
-      createdBy: req.user?._id
-    });
+    let invoice = null;
+    if (invoiceId) {
+      // Atomic conditional update to guard against simultaneous payments & overpayments
+      invoice = await Invoice.findOneAndUpdate(
+        { _id: invoiceId, balance: { $gte: numAmount }, deletedAt: null },
+        { 
+          $inc: { amountPaid: numAmount, balance: -numAmount } 
+        },
+        { returnDocument: 'after' }
+      );
+
+      if (!invoice) {
+        const existingInv = await Invoice.findById(invoiceId);
+        if (!existingInv) {
+          return res.status(404).json({ success: false, message: 'Invoice not found' });
+        }
+        return res.status(400).json({ 
+          success: false, 
+          message: `Payment amount (₹${amount}) exceeds invoice current available balance (₹${existingInv.balance}) or another concurrent payment reduced the balance.` 
+        });
+      }
+
+      // Update status on the atomically updated invoice
+      invoice.status = invoice.balance <= 0 ? 'Paid' : 'Partially Paid';
+      await invoice.save();
+    }
+
+    let payment;
+    try {
+      const paymentId = await generateNextNumber('PAYMENT');
+      payment = await Payment.create({
+        ...req.body,
+        paymentId,
+        createdBy: req.user?._id
+      });
+    } catch (createErr) {
+      // If payment record failed (e.g. duplicate key on transactionReference under concurrency), rollback invoice
+      if (invoiceId) {
+        await Invoice.findByIdAndUpdate(invoiceId, {
+          $inc: { amountPaid: -numAmount, balance: numAmount }
+        });
+      }
+      if (createErr.code === 11000) {
+        return res.status(409).json({
+          success: false,
+          message: `A payment with this transaction reference has already been processed concurrently.`
+        });
+      }
+      throw createErr;
+    }
 
     // Recompute total valid payments from DB for absolute consistency
     if (invoiceId) {
       const allValidPayments = await Payment.find({ invoiceId, deletedAt: null });
       const totalPaid = allValidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
-      const invoice = await Invoice.findById(invoiceId);
-      if (invoice) {
-        invoice.amountPaid = totalPaid;
-        invoice.balance = Math.max(0, (invoice.totalAmount || 0) - totalPaid);
-
-        if (invoice.balance <= 0) {
-          invoice.status = 'Paid';
-        } else {
-          invoice.status = 'Partially Paid';
-        }
-        await invoice.save();
+      const recheckedInvoice = await Invoice.findById(invoiceId);
+      if (recheckedInvoice) {
+        recheckedInvoice.amountPaid = totalPaid;
+        const totalCredited = recheckedInvoice.creditedAmount || 0;
+        recheckedInvoice.balance = Math.max(0, (recheckedInvoice.totalAmount || 0) - totalPaid - totalCredited);
+        recheckedInvoice.status = recheckedInvoice.balance <= 0 ? 'Paid' : 'Partially Paid';
+        await recheckedInvoice.save();
       }
     }
 
@@ -121,7 +165,8 @@ export const updatePayment = async (req, res) => {
       const invoice = await Invoice.findById(data.invoiceId);
       if (invoice) {
         invoice.amountPaid = totalPaid;
-        invoice.balance = Math.max(0, (invoice.totalAmount || 0) - totalPaid);
+        const totalCredited = invoice.creditedAmount || 0;
+        invoice.balance = Math.max(0, (invoice.totalAmount || 0) - totalPaid - totalCredited);
         if (invoice.balance <= 0) invoice.status = 'Paid';
         else if (invoice.amountPaid > 0) invoice.status = 'Partially Paid';
         else invoice.status = 'Sent';
@@ -160,7 +205,8 @@ export const deletePayment = async (req, res) => {
       const invoice = await Invoice.findById(payment.invoiceId);
       if (invoice) {
         invoice.amountPaid = totalPaid;
-        invoice.balance = Math.max(0, (invoice.totalAmount || 0) - totalPaid);
+        const totalCredited = invoice.creditedAmount || 0;
+        invoice.balance = Math.max(0, (invoice.totalAmount || 0) - totalPaid - totalCredited);
         if (invoice.balance <= 0 && invoice.totalAmount > 0) invoice.status = 'Paid';
         else if (invoice.amountPaid > 0) invoice.status = 'Partially Paid';
         else invoice.status = 'Sent';

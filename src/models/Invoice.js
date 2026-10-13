@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const invoiceItemSchema = new mongoose.Schema({
   item: { type: String, required: true },
+  serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceCatalog' },
   description: { type: String },
   quantity: { type: Number, default: 1 },
   rate: { type: Number, default: 0 },
@@ -15,6 +16,7 @@ const invoiceSchema = new mongoose.Schema({
   clientId: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
   projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
   quotationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Quotation' },
+  invoiceType: { type: String, enum: ['Standard', 'Advance', 'Milestone', 'AMC', 'Final'], default: 'Standard' },
   invoiceDate: { type: Date, default: Date.now },
   dueDate: { type: Date, required: true },
   items: [invoiceItemSchema],
@@ -23,6 +25,7 @@ const invoiceSchema = new mongoose.Schema({
   discountAmount: { type: Number, default: 0 },
   totalAmount: { type: Number, required: true },
   amountPaid: { type: Number, default: 0 },
+  creditedAmount: { type: Number, default: 0 },
   balance: { type: Number, default: 0 },
   status: { 
     type: String, 

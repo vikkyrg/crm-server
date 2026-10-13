@@ -20,7 +20,35 @@ export const getAMC = async (req, res) => {
 
 export const createAMC = async (req, res) => {
   try {
-    const data = await AMC.create({ ...req.body, createdBy: req.user._id });
+    const { 
+      title, 
+      serviceName, 
+      clientId, 
+      startDate, 
+      endDate, 
+      expiryDate, 
+      amcValue, 
+      amcAmount, 
+      costPrice, 
+      notes, 
+      coverageDetails 
+    } = req.body;
+
+    const finalTitle = title || serviceName || 'Annual Maintenance Contract';
+    const finalEndDate = endDate || expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const finalAmount = Number(amcValue || amcAmount || 0);
+
+    const data = await AMC.create({
+      ...req.body,
+      title: finalTitle,
+      clientId,
+      startDate: startDate || new Date(),
+      endDate: finalEndDate,
+      amcValue: finalAmount,
+      costPrice: costPrice || 0,
+      coverageDetails: coverageDetails || notes || '',
+      createdBy: req.user._id
+    });
     res.status(201).json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

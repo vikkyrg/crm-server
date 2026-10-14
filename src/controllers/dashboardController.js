@@ -35,26 +35,52 @@ export const getManagementMetrics = async (req, res) => {
       Lead.countDocuments({ status: 'Won', deletedAt: null }),
       Project.countDocuments({ status: 'Active', deletedAt: null }),
       Project.countDocuments({ status: 'Delayed', deletedAt: null }),
-      Invoice.find({ deletedAt: null }, 'totalAmount balance status dueDate'),
-      Payment.find({ deletedAt: null }, 'amount'),
+      Invoice.find({ deletedAt: null }, 'totalAmount balance status dueDate createdAt'),
+      Payment.find({ deletedAt: null, status: { $in: ['Completed', 'Pending'] } }, 'amount paymentDate paymentMethod createdAt status'),
       Expense.find({ deletedAt: null }, 'amount'),
       Ticket.countDocuments({ status: { $ne: 'Closed' }, deletedAt: null }),
       Domain.countDocuments({ status: 'Expiring Soon', deletedAt: null }),
       Client.countDocuments({ deletedAt: null }),
       Project.countDocuments({ status: 'Completed', deletedAt: null }),
-      CreditNote.find({ deletedAt: null }, 'totalCreditAmount')
+      CreditNote.find({ deletedAt: null }, 'totalCreditAmount refundAmount adjustmentType status')
     ]);
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const totalRevenue = totalInvoicedAmount(totalInvoices);
     const totalCollected = totalPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    // Payments today & this month
+    const collectedToday = totalPayments
+      .filter(p => new Date(p.paymentDate || p.createdAt) >= startOfToday)
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    const collectedThisMonth = totalPayments
+      .filter(p => new Date(p.paymentDate || p.createdAt) >= startOfMonth)
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    // Total actual cash refunds from credit notes
+    const totalRefunds = creditNotes
+      .filter(cn => cn.status === 'Applied' && (cn.refundAmount || 0) > 0)
+      .reduce((sum, cn) => sum + (cn.refundAmount || 0), 0);
+
+    const netCollected = Math.max(0, totalCollected - totalRefunds);
     const totalCredited = creditNotes.reduce((sum, cn) => sum + (cn.totalCreditAmount || 0), 0);
     const totalOutstanding = totalInvoices.reduce((sum, i) => sum + (i.balance || 0), 0);
-    const now = new Date();
+    
     const overdueReceivables = totalInvoices
       .filter(i => i.status === 'Overdue' || (i.dueDate && new Date(i.dueDate) < now && (i.balance || 0) > 0))
       .reduce((sum, i) => sum + (i.balance || 0), 0);
+
+    const pendingVerificationCount = await Payment.countDocuments({ 
+      verificationStatus: 'Pending Verification', 
+      deletedAt: null 
+    });
+
     const totalExpensesCost = totalExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const netProfit = totalCollected - totalExpensesCost;
+    const netProfit = netCollected - totalExpensesCost;
 
     res.json({
       success: true,
@@ -68,9 +94,14 @@ export const getManagementMetrics = async (req, res) => {
         finance: {
           revenue: totalRevenue,
           collected: totalCollected,
+          netCollected,
+          collectedToday,
+          collectedThisMonth,
+          refunds: totalRefunds,
           credited: totalCredited,
           outstanding: totalOutstanding,
           overdue: overdueReceivables,
+          pendingVerification: pendingVerificationCount,
           expenses: totalExpensesCost,
           profit: netProfit
         },

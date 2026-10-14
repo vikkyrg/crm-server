@@ -17,6 +17,7 @@ import Expense from '../models/Expense.js';
 import Document from '../models/Document.js';
 import AuditLog from '../models/AuditLog.js';
 import CreditNote from '../models/CreditNote.js';
+import FollowUp from '../models/FollowUp.js';
 import { generateNextNumber } from '../services/numberingService.js';
 import { logAudit } from '../services/auditService.js';
 
@@ -169,11 +170,15 @@ export const getClient360 = async (req, res) => {
       .filter(inv => inv.status === 'Overdue' || (inv.dueDate && new Date(inv.dueDate) < now && (inv.balance || 0) > 0))
       .reduce((sum, inv) => sum + (inv.balance || 0), 0);
 
-    // Advance received: Payments linked to advance invoices or projects with advance requirements
+    // Advance received: Payments linked to advance invoices, or unallocated direct advance payments
     const advanceInvoices = invoices.filter(inv => inv.invoiceType === 'Advance');
     const advanceInvoiceIds = new Set(advanceInvoices.map(i => String(i._id)));
     const totalAdvanceReceived = payments
-      .filter(p => p.invoiceId && advanceInvoiceIds.has(String(p.invoiceId)))
+      .filter(p => (p.invoiceId && advanceInvoiceIds.has(String(p.invoiceId))) || (!p.invoiceId && (p.paymentType === 'Advance' || p.paymentType === 'Retainer')))
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    const unallocatedAdvance = payments
+      .filter(p => !p.invoiceId && ['Completed', 'Pending'].includes(p.status))
       .reduce((sum, p) => sum + (p.amount || 0), 0);
 
     const totalUnbilled = Math.max(0, totalContractValue - totalInvoiced);
@@ -198,6 +203,7 @@ export const getClient360 = async (req, res) => {
           totalInvoiced,
           totalPaid,
           totalAdvanceReceived,
+          unallocatedAdvance,
           totalCredited,
           totalOutstanding,
           totalOverdue,
@@ -302,22 +308,93 @@ export const updateClient = async (req, res) => {
 
 export const deleteClient = async (req, res) => {
   try {
-    const data = await Client.findByIdAndUpdate(
-      req.params.id,
-      { deletedAt: new Date(), updatedBy: req.user?._id },
-      { new: true }
-    );
-    if (!data) return res.status(404).json({ success: false, message: 'Client not found' });
+    const clientId = req.params.id;
+    const { permanent } = req.query; // supports ?permanent=true for hard delete if requested
+
+    const client = await Client.findById(clientId);
+    if (!client) return res.status(404).json({ success: false, message: 'Client not found' });
+
+    // Find all projects belonging to this client to also delete their linked tasks
+    const clientProjects = await Project.find({ clientId }).select('_id');
+    const projectIds = clientProjects.map(p => p._id);
+
+    if (permanent === 'true') {
+      // 1. Hard cascade delete across all connected collections
+      await Promise.all([
+        Client.findByIdAndDelete(clientId),
+        Contact.deleteMany({ clientId }),
+        Lead.updateMany({ convertedClientId: clientId }, { $unset: { convertedClientId: 1, isConverted: 1 } }),
+        FollowUp.deleteMany({ clientId }),
+        Quotation.deleteMany({ clientId }),
+        Contract.deleteMany({ clientId }),
+        Project.deleteMany({ clientId }),
+        Task.deleteMany({ projectId: { $in: projectIds } }),
+        Website.deleteMany({ clientId }),
+        MobileApp.deleteMany({ clientId }),
+        Domain.deleteMany({ clientId }),
+        Hosting.deleteMany({ clientId }),
+        AMC.deleteMany({ clientId }),
+        Ticket.deleteMany({ clientId }),
+        Invoice.deleteMany({ clientId }),
+        Payment.deleteMany({ clientId }),
+        Expense.deleteMany({ clientId }),
+        Document.deleteMany({ $or: [{ relatedRecordId: clientId }, { relatedRecordId: { $in: projectIds } }] }),
+        CreditNote.deleteMany({ clientId })
+      ]);
+
+      await logAudit({
+        userId: req.user?._id,
+        action: 'PERMANENT_DELETE_CLIENT',
+        module: 'Client',
+        recordId: client._id,
+        oldValues: { companyName: client.companyName },
+        req
+      });
+
+      return res.json({ 
+        success: true, 
+        message: `Client "${client.companyName}" and all associated data permanently removed across all modules.` 
+      });
+    }
+
+    // 2. Comprehensive Cascade Soft Delete (default safe enterprise behavior)
+    const now = new Date();
+    const userId = req.user?._id;
+
+    await Promise.all([
+      Client.findByIdAndUpdate(clientId, { deletedAt: now, status: 'Inactive', updatedBy: userId }),
+      Contact.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      FollowUp.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      Quotation.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      Contract.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      Project.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      Task.updateMany({ projectId: { $in: projectIds }, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      Website.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      MobileApp.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      Domain.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      Hosting.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      AMC.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      Ticket.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      Invoice.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      Payment.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      Expense.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      Document.updateMany({ $or: [{ relatedRecordId: clientId }, { relatedRecordId: { $in: projectIds } }], deletedAt: null }, { deletedAt: now, updatedBy: userId }),
+      CreditNote.updateMany({ clientId, deletedAt: null }, { deletedAt: now, updatedBy: userId })
+    ]);
 
     await logAudit({
       userId: req.user?._id,
-      action: 'DELETE_CLIENT',
+      action: 'CASCADE_DELETE_CLIENT',
       module: 'Client',
-      recordId: data._id,
+      recordId: client._id,
+      oldValues: { companyName: client.companyName },
       req
     });
 
-    res.json({ success: true, message: 'Client deleted/archived successfully' });
+    res.json({ 
+      success: true, 
+      message: `Client "${client.companyName}" and all linked records removed from all pages.` 
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

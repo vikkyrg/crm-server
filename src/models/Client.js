@@ -5,6 +5,7 @@ const clientSchema = new mongoose.Schema({
   branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch' },
   clientId: { type: String, unique: true, sparse: true },
   companyName: { type: String, required: true },
+  name: { type: String }, // Legacy field compatibility
   contactPerson: { type: String },
   email: { type: String },
   phone: { type: String },

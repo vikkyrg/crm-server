@@ -5,7 +5,7 @@ import AuditLog from '../models/AuditLog.js';
 import jwt from 'jsonwebtoken';
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'secret', {
+  return jwt.sign({ id }, process.env.JWT_SECRET || 'supersecretjwtkey_12345', {
     expiresIn: process.env.JWT_EXPIRES_IN || '30d',
   });
 };

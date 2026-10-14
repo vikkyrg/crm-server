@@ -24,6 +24,7 @@ const websiteSchema = new mongoose.Schema({
   amcId: { type: mongoose.Schema.Types.ObjectId, ref: 'AMC' },
   status: { type: String, enum: ['Live', 'Development', 'Maintenance', 'Suspended'], default: 'Live' },
   loginReferences: { type: String }, // Encrypted reference
+  notes: { type: String },
   backupStatus: { type: String, enum: ['Daily', 'Weekly', 'Failed', 'None'], default: 'Weekly' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

@@ -22,7 +22,7 @@ export const getWebsites = async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
 
     const data = await Website.find(query)
-      .populate('clientId', 'companyName contactPerson email')
+      .populate('clientId', 'companyName name contactPerson email')
       .populate('projectId', 'projectName')
       .populate('amcId', 'amcNumber status')
       .sort({ createdAt: -1 })
@@ -73,7 +73,8 @@ export const createWebsite = async (req, res) => {
       renewalDate,
       hasAmc = false,
       status = 'Live',
-      backupStatus = 'Weekly'
+      backupStatus = 'Weekly',
+      notes
     } = req.body;
 
     if (!clientId) {
@@ -104,6 +105,7 @@ export const createWebsite = async (req, res) => {
       hasAmc,
       status,
       backupStatus,
+      notes,
       createdBy: req.user?._id
     });
 
